@@ -1,0 +1,228 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{AE7CFEE7-4058-4E3C-ADC2-AE7480EE2028}</ProjectGuid>
+    <RootNamespace>CellOffsetGenerator</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>CellOffsetGenerator</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <EnableASAN>false</EnableASAN>
+    <EnableFuzzer>false</EnableFuzzer>
+    <EnableUnitySupport>false</EnableUnitySupport>
+    <UseOfMfc>false</UseOfMfc>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <EnableASAN>false</EnableASAN>
+    <EnableFuzzer>false</EnableFuzzer>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>16.0.28916.169</_ProjectFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(DXSDK_DIR)Lib\x86</LibraryPath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(DXSDK_DIR)Include</IncludePath>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+    <EnableClangTidyCodeAnalysis>false</EnableClangTidyCodeAnalysis>
+    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
+    <IntDir>$(Configuration)\</IntDir>
+    <LinkIncremental>true</LinkIncremental>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(DXSDK_DIR)Lib\x86</LibraryPath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(DXSDK_DIR)Include</IncludePath>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+    <EnableClangTidyCodeAnalysis>false</EnableClangTidyCodeAnalysis>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\..;$(SolutionDir)\..\nvse;$(SolutionDir)\..\nvse\nvse;internal;internal\Game\Bethesda;internal\Game\Gamebryo;internal\Game\Obsidian;internal\Utils;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GAME;WIN32;NDEBUG;_WINDOWS;_USRDLL;RUNTIME_VERSION=0x040020D0;RUNTIME;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ForcedIncludeFiles>$(SolutionDir)..\shared\Defines.hpp;%(ForcedIncludeFiles)</ForcedIncludeFiles>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
+      <AdditionalOptions>/Qfast_transcendentals %(AdditionalOptions)</AdditionalOptions>
+      <IntelJCCErratum>true</IntelJCCErratum>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <OmitFramePointers>true</OmitFramePointers>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <CreateHotpatchableImage>false</CreateHotpatchableImage>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <StringPooling>true</StringPooling>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+    </ClCompile>
+    <Link>
+      <ModuleDefinitionFile>
+      </ModuleDefinitionFile>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <DataExecutionPrevention />
+      <TargetMachine>MachineX86</TargetMachine>
+      <ShowProgress>NotSet</ShowProgress>
+      <LinkTimeCodeGeneration>UseFastLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <Driver>NotSet</Driver>
+      <AdditionalDependencies>d3d9.lib;Shcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Message>Installing DLL...</Message>
+      <Command>copy "$(TargetPath)" "$(MO2)\Cell Offset Generator - NVSE\nvse\plugins\$(TargetFileName)"
+copy "$(TargetDir)$(TargetName).pdb" "$(MO2)\Cell Offset Generator - NVSE\nvse\plugins\$(TargetName).pdb"
+copy "$(TargetDir)$(TargetName).pdb" "C:\Symbols\$(TargetName).pdb"</Command>
+    </PostBuildEvent>
+    <Manifest>
+      <AdditionalManifestFiles>
+      </AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\..;$(SolutionDir)\..\nvse;$(SolutionDir)\..\nvse\nvse;internal;internal\Game\Bethesda;internal\Game\Gamebryo;internal\Game\Obsidian;internal\Utils;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GAME;WIN32;_WINDOWS;_USRDLL;NVSE_PLUGIN_EXAMPLE_EXPORTS;RUNTIME_VERSION=0x040020D0;RUNTIME;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ForcedIncludeFiles>$(SolutionDir)..\shared\Defines.hpp;%(ForcedIncludeFiles)</ForcedIncludeFiles>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <EnableParallelCodeGeneration>false</EnableParallelCodeGeneration>
+      <AdditionalOptions>/Qfast_transcendentals %(AdditionalOptions)</AdditionalOptions>
+      <IntelJCCErratum>false</IntelJCCErratum>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <Optimization>Disabled</Optimization>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <CreateHotpatchableImage>true</CreateHotpatchableImage>
+    </ClCompile>
+    <Link>
+      <ModuleDefinitionFile>
+      </ModuleDefinitionFile>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Windows</SubSystem>
+      <OptimizeReferences>false</OptimizeReferences>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
+      <DataExecutionPrevention>
+      </DataExecutionPrevention>
+      <TargetMachine>MachineX86</TargetMachine>
+      <ShowProgress>NotSet</ShowProgress>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+      <AdditionalDependencies>d3d9.lib;Shcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+    <PostBuildEvent>
+      <Message>Installing DLL...</Message>
+      <Command>copy "$(TargetPath)" "$(MO2)\Cell Offset Generator - NVSE\nvse\plugins\$(TargetFileName)"
+copy "$(TargetDir)$(TargetName).pdb" "$(MO2)\Cell Offset Generator - NVSE\nvse\plugins\$(TargetName).pdb"
+copy "$(TargetDir)$(TargetName).pdb" "C:\Symbols\$(TargetName).pdb"</Command>
+    </PostBuildEvent>
+    <Manifest>
+      <AdditionalManifestFiles>
+      </AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\shared\SafeWrite\SafeWrite.cpp" />
+    <ClCompile Include="..\shared\Utils\AutoScrapHeapBuffer.cpp" />
+    <ClCompile Include="..\shared\Utils\DebugLog.cpp" />
+    <ClCompile Include="internal\CellOffsetGenerator.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\BSFile.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\BSMemory.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\BSSystemFile.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\LoadingMenu.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\MemoryManager.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\ScrapHeap.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\TESDataHandler.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\TESFile.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\TESForm.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\TESObjectCELL.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\TESWorldSpace.cpp" />
+    <ClCompile Include="internal\Game\Bethesda\Tile.cpp" />
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\nvse\nvse\nvse_version.h" />
+    <ClInclude Include="..\nvse\nvse\PluginAPI.h" />
+    <ClInclude Include="..\shared\Defines.hpp" />
+    <ClInclude Include="..\shared\SafeWrite\SafeWrite.hpp" />
+    <ClInclude Include="..\shared\Utils\AutoScrapHeapBuffer.hpp" />
+    <ClInclude Include="..\shared\Utils\DebugLog.hpp" />
+    <ClInclude Include="internal\CellOffsetGenerator.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\BSFile.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\BSMemory.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\BSSystemFile.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\LoadingMenu.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\MemoryManager.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\Menu.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\ScrapHeap.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\TESDataHandler.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\TESFile.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\TESForm.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\TESObjectCELL.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\TESWorldSpace.hpp" />
+    <ClInclude Include="internal\Game\Bethesda\Tile.hpp" />
+    <ClInclude Include="internal\MultiThreadedIO.hpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
