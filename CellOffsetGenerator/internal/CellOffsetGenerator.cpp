@@ -21,6 +21,8 @@
 #define DEBUG_MSG(...)
 #endif
 
+static const char OFFSETS_DIR[] = "Data\\CellOffsets";
+
 XXH64_hash_t CreateHashForFile(TESFile* apFile, XXH3_state_t* apHashState) {
 	constexpr uint32_t uiBufferSize = 8192;
 
@@ -428,6 +430,8 @@ void OffsetGenerator::Start() {
 	if (hMainThread)
 		return;
 
+	CreateDirectory(OFFSETS_DIR, nullptr);
+
 	SYSTEM_INFO kSysInfo;
 	GetSystemInfo(&kSysInfo);
 	const uint32_t uiCoreCount = std::min(DWORD(32), kSysInfo.dwNumberOfProcessors);
@@ -460,7 +464,7 @@ void CreateOffsetsForFile(TESFile* apFile, XXH3_state_t* apHashState) {
 	XXH64_hash_t ullHash = CreateHashForFile(apFile, apHashState);
 
 	char cFolderPath[MAX_PATH];
-	sprintf_s(cFolderPath, "Data\\CellOffsets\\%s", apFile->GetName());
+	sprintf_s(cFolderPath, "%s\\%s", OFFSETS_DIR, apFile->GetName());
 	for (TESWorldSpace* pWorld : TESDataHandler::GetSingleton()->kWorldSpaces) {
 		auto pOffsetData = pWorld->GetOffsetData(apFile);
 		// Plugin doesn't contain the worldspace
