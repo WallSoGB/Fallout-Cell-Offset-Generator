@@ -22,6 +22,10 @@
 #endif
 
 static const char OFFSETS_DIR[] = "Data\\CellOffsets";
+uint32_t uiTotalWorlds = 0;
+volatile bool bGeneratingOffsets = false;
+volatile uint32_t uiProcessedWorlds = 0;
+uint32_t uiLastValue = 0;
 
 XXH64_hash_t CreateHashForFile(TESFile* apFile, XXH3_state_t* apHashState) {
 	constexpr uint32_t uiBufferSize = 8192;
@@ -234,51 +238,58 @@ OffsetGenerator::~OffsetGenerator() {
 
 	CloseHandle(hMainThread);
 	hMainThread = nullptr;
-}
 
-uint32_t uiTotalWorlds = 0;
-volatile uint32_t uiProcessedWorlds = 0;
-volatile uint32_t uiProcessedFiles = 0;
-uint32_t uiLastValue = 0;
+	bGeneratingOffsets  = false;
+	uiTotalWorlds		= 0;
+	uiProcessedWorlds	= 0;
+	uiLastValue			= 0;
+}
 
 void OffsetGenerator::RenderUI() {
 	if (!bRunning)
 		return;
 
-	
-	Menu* pLoadingMenu = LoadingMenu::GetSingleton();
-	Tile* pUI = nullptr;
-	Tile* pProgressText = nullptr;
-
-	bool bFirstRun = false;
-	if (!pUI) {
-		pUI = pLoadingMenu->pRootTile->ReadFile("data\\menus\\prefabs\\OffsetGen\\ProgressMeter.xml");
-		pProgressText = Tile::GetChildByName(pUI, "ProgressText");
-		bFirstRun = true;
+	// Wait until we actually have something to generate
+	// That way we don't show the progress bar if we are not generating anything
+	while (!bDone && !bGeneratingOffsets) {
+		Sleep(1);
 	}
 
-	if (pUI) {
-		uint32_t uiProgressID = Tile::TextToTrait("_progress");
-		while (!bDone) {
-			if (uiLastValue != uiProcessedWorlds || bFirstRun) {
-				float fProgress = float(uiProcessedWorlds) / uiTotalWorlds;
-				pUI->SetValue(uiProgressID, fProgress, false);
+	if (!bDone) {
+		Menu* pLoadingMenu = LoadingMenu::GetSingleton();
+		Tile* pUI = nullptr;
+		Tile* pProgressText = nullptr;
 
-				char cBuffer[64];
-				sprintf_s(cBuffer, "%i/%i", uiProcessedWorlds, uiTotalWorlds);
-				pProgressText->SetValue(Tile::kTileValue_string, cBuffer, true);
-
-				uiLastValue = uiProcessedWorlds;
-			}
+		bool bFirstRun = false;
+		if (!pUI) {
+			pUI = pLoadingMenu->pRootTile->ReadFile("data\\menus\\prefabs\\OffsetGen\\ProgressMeter.xml");
+			pProgressText = Tile::GetChildByName(pUI, "ProgressText");
+			bFirstRun = true;
 		}
-		pUI->Release();
-		delete pUI;
+
+		if (pUI) {
+			uint32_t uiProgressID = Tile::TextToTrait("_progress");
+			while (!bDone) {
+				if (uiLastValue != uiProcessedWorlds || bFirstRun) {
+					float fProgress = float(uiProcessedWorlds) / uiTotalWorlds;
+					pUI->SetValue(uiProgressID, fProgress, false);
+
+					char cBuffer[64];
+					sprintf_s(cBuffer, "%i/%i", uiProcessedWorlds, uiTotalWorlds);
+					pProgressText->SetValue(Tile::kTileValue_string, cBuffer, true);
+
+					uiLastValue = uiProcessedWorlds;
+				}
+			}
+			pUI->Release();
+			delete pUI;
+		}
 	}
 
 	bRunning = false;
 }
 
-uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* apFile) {
+uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* apFile, ScrapHeap* apHeap) {
 	const char* pWorldName = apWorld->GetFormEditorID();
 	auto pData = apWorld->GetOffsetData(apFile);
 	if (!pData) {
@@ -314,7 +325,7 @@ uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* a
 	}
 	uint32_t uiAllocSize = sizeof(uint32_t) * uiOffsetCount;
 
-	AutoScrapHeapBuffer kHeap(uiAllocSize);
+	AutoScrapHeapBuffer kHeap(uiAllocSize, 4, apHeap);
 	memset(kHeap.pData, 0, uiAllocSize);
 
 	for (int32_t y = iMinY; y <= iMaxY; y++) {
@@ -332,6 +343,8 @@ uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* a
 		DEBUG_MSG("GenerateCellOffsets - World %s in file %s is empty", apWorld->GetFormEditorID(), apFile->GetName());
 		return UINT32_MAX;
 	}
+
+	bGeneratingOffsets = true;
 
 	pData->pCellFileOffsets = BSNew<uint32_t>(uiOffsetCount);
 	memcpy(pData->pCellFileOffsets, kHeap.pData, uiAllocSize);
@@ -379,47 +392,68 @@ void OffsetGenerator::InitHooks() {
 
 DWORD WINAPI OffsetGenerator::ThreadProc(LPVOID lpThreadParameter) {
 	OffsetGenerator* pGenerator = static_cast<OffsetGenerator*>(lpThreadParameter);
-	std::vector<TESFile*> kFilesBySize;
-	kFilesBySize.reserve(TESDataHandler::GetSingleton()->GetCompiledFileCount());
+	{
+		std::vector<TESFile*> kFilesBySize;
+		kFilesBySize.reserve(TESDataHandler::GetSingleton()->GetCompiledFileCount());
 
-	for (TESWorldSpace* pWorld : TESDataHandler::GetSingleton()->kWorldSpaces) {
-		for (TESFile* pFile : pWorld->kFiles) {
-			TESWorldSpace::OFFSET_DATA* pData = pWorld->GetOffsetData(pFile);
-			if (pData && pData->pCellFileOffsets)
-				continue;
+		for (TESWorldSpace* pWorld : TESDataHandler::GetSingleton()->kWorldSpaces) {
+			for (TESFile* pFile : pWorld->kFiles) {
+				TESWorldSpace::OFFSET_DATA* pData = pWorld->GetOffsetData(pFile);
+				if (pData && pData->pCellFileOffsets)
+					continue;
 
-			kFilesBySize.push_back(pFile);
-			uiTotalWorlds++;
+				kFilesBySize.push_back(pFile);
+				uiTotalWorlds++;
+			}
 		}
-	}
 
-	if (uiTotalWorlds == 0) {
-		_MESSAGE("All worlds have cell offsets already! Skipping generation");
-		pGenerator->bDone = true;
-		return 0;
-	}
+		if (uiTotalWorlds == 0) {
+			_MESSAGE("All worlds have cell offsets already! Skipping generation");
+			pGenerator->bDone = true;
+			return 0;
+		}
 
-	// Remove duplicates
-	std::sort(kFilesBySize.begin(), kFilesBySize.end());
-	auto kEnd = std::unique(kFilesBySize.begin(), kFilesBySize.end());
-	kFilesBySize.erase(kEnd, kFilesBySize.end());
+		// Remove duplicates
+		std::sort(kFilesBySize.begin(), kFilesBySize.end());
+		auto kEnd = std::unique(kFilesBySize.begin(), kFilesBySize.end());
+		kFilesBySize.erase(kEnd, kFilesBySize.end());
 
-	// Sort files by size, from largest to smallest
-	std::sort(kFilesBySize.begin(), kFilesBySize.end(), [](TESFile* apA, TESFile* apB) {
-		return apA->uiFileSize > apB->uiFileSize;
-		});
+		// Sort files by size, from largest to smallest
+		std::sort(kFilesBySize.begin(), kFilesBySize.end(), [](TESFile* apA, TESFile* apB) {
+			return apA->uiFileSize > apB->uiFileSize;
+			});
 
-	// Distribute files across threads
-	uint32_t uiThreadIndex = 0;
-	for (TESFile* pFile : kFilesBySize) {
-		pGenerator->kThreads[uiThreadIndex].AddFile(pFile);
-		uiThreadIndex = (uiThreadIndex + 1) % pGenerator->kThreads.size();
+		// Distribute files across threads
+		uint32_t uiThreadIndex = 0;
+		for (TESFile* pFile : kFilesBySize) {
+			pGenerator->kThreads[uiThreadIndex].AddFile(pFile);
+			uiThreadIndex = (uiThreadIndex + 1) % pGenerator->kThreads.size();
+		}
 	}
 
 	for (OffsetGenThread& kThread : pGenerator->kThreads)
 		ResumeThread(kThread.hThread);
 
 	WaitForMultipleObjects(pGenerator->kThreadHandles.size(), pGenerator->kThreadHandles.data(), TRUE, INFINITE);
+
+	for (OffsetGenThread& kThread : pGenerator->kThreads) {
+		const DWORD dwThreadID = GetThreadId(kThread.hThread);
+
+		for (TESFile* pFile : kThread.kFiles) {
+			TESFile* pThreadFile = nullptr;
+			if (pFile->pThreadSafeFileMap && pFile->pThreadSafeFileMap->GetAt(dwThreadID, pThreadFile)) {
+				pFile->pThreadSafeFileMap->RemoveAt(dwThreadID);
+
+				// "Manual" CloseTES, since the original checks if TESDataHandler is closing files
+				pThreadFile->CloseAllOpenGroups();
+				delete pThreadFile->pFile;
+				pThreadFile->pFile = nullptr;
+				pThreadFile->FreeDecompressedFormBuffer();
+
+				ThisCall(0x4601A0, pThreadFile, true); // TESFile destructor
+			}
+		}
+	}
 
 	pGenerator->bDone = true;
 
@@ -435,11 +469,10 @@ void OffsetGenerator::Start() {
 	SYSTEM_INFO kSysInfo;
 	GetSystemInfo(&kSysInfo);
 	const uint32_t uiCoreCount = std::min(DWORD(32), kSysInfo.dwNumberOfProcessors);
-	const uint32_t uiLoadedFiles = TESDataHandler::GetSingleton()->kCompiledFiles.GetFileCount();
 
-	__assume(uiCoreCount > 0 && uiLoadedFiles > 0);
+	__assume(uiCoreCount > 0);
 
-	_MESSAGE("Initializing %i threads for %i files", uiCoreCount, uiLoadedFiles);
+	_MESSAGE("Initializing %i threads", uiCoreCount);
 	kThreads.resize(uiCoreCount);
 
 	for (uint32_t i = 0; i < uiCoreCount; i++) {
@@ -460,7 +493,7 @@ void OffsetGenerator::Start() {
 	bRunning = true;
 }
 
-void CreateOffsetsForFile(TESFile* apFile, XXH3_state_t* apHashState) {
+void CreateOffsetsForFile(TESFile* apFile, XXH3_state_t* apHashState, ScrapHeap* apHeap = nullptr) {
 	XXH64_hash_t ullHash = CreateHashForFile(apFile, apHashState);
 
 	char cFolderPath[MAX_PATH];
@@ -485,7 +518,7 @@ void CreateOffsetsForFile(TESFile* apFile, XXH3_state_t* apHashState) {
 			continue;
 		}
 
-		uint32_t uiOffsetCount = OffsetGenerator::GenerateCellOffsets(pWorld, apFile);
+		uint32_t uiOffsetCount = OffsetGenerator::GenerateCellOffsets(pWorld, apFile, apHeap);
 		if (!uiOffsetCount || !pOffsetData->pCellFileOffsets) {
 			uiProcessedWorlds++;
 			continue;
@@ -512,7 +545,7 @@ void OffsetGenThread::AddFile(const TESFile* apFile) {
 }
 
 DWORD __stdcall OffsetGenThread::ThreadProc(LPVOID lpThreadParameter) {
-	OffsetGenThread* pThread = (OffsetGenThread*)lpThreadParameter;
+	OffsetGenThread* pThread = static_cast<OffsetGenThread*>(lpThreadParameter);
 
 	pThread->Run();
 
@@ -523,44 +556,16 @@ bool OffsetGenThread::Run() {
 	if (kFiles.empty())
 		return false;
 
-	uint32_t uiThread = GetCurrentThreadId();
-
 	XXH3_state_t* pHashState = XXH3_createState();
 
+	ScrapHeap kHeap;
 	for (TESFile* pFile : kFiles) {
 		TESFile* pThreadFile = pFile->GetThreadSafeFile();
-		if (pThreadFile) {
-			CreateOffsetsForFile(pThreadFile, pHashState);
-		}
-
-		uiProcessedFiles++;
+		if (pThreadFile)
+			CreateOffsetsForFile(pThreadFile, pHashState, &kHeap);
 	};
 
 	XXH3_freeState(pHashState);
-
-	for (TESFile* pFile : *TESDataHandler::GetSingleton()->GetFileList()) {
-		TESFile* pThreadFile = nullptr;
-		if (pFile->pThreadSafeFileMap && pFile->pThreadSafeFileMap->GetAt(uiThread, pThreadFile)) {
-			pFile->pThreadSafeFileMap->RemoveAt(uiThread);
-
-			// "Manual" CloseTES, since the original checks if TESDataHandler is closing files
-			pThreadFile->CloseAllOpenGroups();
-			delete pThreadFile->pFile;
-			pThreadFile->pFile = nullptr;
-			pThreadFile->FreeDecompressedFormBuffer();
-
-			if (pThreadFile->pThreadSafeFileMap) {
-				auto kIter = pThreadFile->pThreadSafeFileMap->GetFirstPos();
-				while (kIter) {
-					uint32_t uiThreadID;
-					TESFile* pThreadFileChild = nullptr;
-					pFile->pThreadSafeFileMap->GetNext(kIter, uiThreadID, pThreadFileChild);
-				}
-			}
-
-			ThisCall(0x4601A0, pThreadFile, true); // TESFile destructor
-		}
-	}
 
 	return false;
 }

@@ -33,24 +33,31 @@ void* ScrapHeapManager::RequestBuffer(SIZE_T& arSize) {
 // GAME - 0xAA53F0
 // GECK - 0x855910
 ScrapHeap::ScrapHeap() {
-	Initialize(B_KiB(64));
+#ifdef GAME
+	ThisCall(0xAA53F0, this);
+#else
+	ThisCall(0x855910, this);
+#endif
 }
 
 // GAME - 0xAA5410
 // GECK - 0x855930
 ScrapHeap::ScrapHeap(SIZE_T aReserveSize) {
-	if (aReserveSize)
-		aReserveSize = (aReserveSize + B_KiB(64)) & 0xFFFF0000;
-
-	Initialize(aReserveSize);
+#ifdef GAME
+	ThisCall(0xAA5410, this, aReserveSize);
+#else
+	ThisCall(0x855930, this, aReserveSize);
+#endif
 }
 
 // GAME - 0xAA5460
 // GECK - 0x855980
 ScrapHeap::~ScrapHeap() {
-	ScrapHeapManager::GetSingleton()->ReleaseBuffer(pBaseAddress, GetSize());
-	pBaseAddress = nullptr;
-	pCommitStart = 0;
+#ifdef GAME
+	ThisCall(0xAA5460, this);
+#else
+	ThisCall(0x855980, this);
+#endif
 }
 
 // GAME - 0xAA54A0
@@ -80,8 +87,9 @@ uint32_t ScrapHeap::GetSize() const {
 // GAME - 0xAA57B0
 // GECK - 0x855CD0
 void ScrapHeap::Initialize(SIZE_T aReserveSize) {
-	pBaseAddress = (char*)ScrapHeapManager::GetSingleton()->RequestBuffer(aReserveSize);
-	pCommitStart = pBaseAddress;
-	pCommitEnd = &pBaseAddress[aReserveSize];
-	pLastBlock = nullptr;
+#ifdef GAME
+	ThisCall(0xAA57B0, this, aReserveSize);
+#else
+	ThisCall(0x855CD0, this, aReserveSize);
+#endif
 }

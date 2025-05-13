@@ -30,7 +30,7 @@ EXTERN_DLL_EXPORT bool NVSEPlugin_Preload() {
 EXTERN_DLL_EXPORT bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* info) {
 	info->infoVersion = PluginInfo::kInfoVersion;
 	info->name = "Cell Offset Generator";
-	info->version = 101;
+	info->version = 102;
 
 	return !nvse->isEditor;
 }

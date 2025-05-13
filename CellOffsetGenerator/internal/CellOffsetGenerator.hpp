@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include "Game/Bethesda/ScrapHeap.hpp"
 
 class Tile;
 class TESFile;
@@ -33,7 +34,7 @@ public:
 
 	void RenderUI();
 
-	static uint32_t GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* apFile);
+	static uint32_t GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* apFile, ScrapHeap* apHeap = nullptr);
 
 	static void InitHooks();
 
