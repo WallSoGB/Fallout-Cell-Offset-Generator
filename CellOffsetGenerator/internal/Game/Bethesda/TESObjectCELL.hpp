@@ -1,6 +1,10 @@
 #pragma once
 
-class TESObjectCELL {
+#include "TESForm.hpp"
+
+class TESFile;
+
+class TESObjectCELL : public TESForm {
 public:
 	TESObjectCELL();
 	~TESObjectCELL();

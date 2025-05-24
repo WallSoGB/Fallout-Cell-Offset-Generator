@@ -221,6 +221,7 @@ copy "$(TargetDir)$(TargetName).pdb" "C:\Symbols\$(TargetName).pdb"</Command>
     <ClInclude Include="internal\Game\Bethesda\TESObjectCELL.hpp" />
     <ClInclude Include="internal\Game\Bethesda\TESWorldSpace.hpp" />
     <ClInclude Include="internal\Game\Bethesda\Tile.hpp" />
+    <ClInclude Include="internal\InteriorOffsets.hpp" />
     <ClInclude Include="internal\MultiThreadedIO.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

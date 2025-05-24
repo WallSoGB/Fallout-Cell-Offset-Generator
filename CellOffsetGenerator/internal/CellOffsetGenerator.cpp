@@ -370,10 +370,6 @@ void OffsetGenerator::InitHooks() {
 		// TESWorldSpace::FindCellInFile
 		PatchMemoryNop(0x585502, 12);
 
-		// Remove other master checks
-		// TESObjectCELL::Load
-		PatchMemoryNop(0x54232A, 2);
-
 		// TESObjectCELL::FindInFileFast
 		PatchMemoryNop(0x5502A1, 6);
 	}

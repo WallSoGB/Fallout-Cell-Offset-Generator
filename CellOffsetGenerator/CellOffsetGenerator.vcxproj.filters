@@ -141,5 +141,8 @@
     <ClInclude Include="internal\MultiThreadedIO.hpp">
       <Filter>internal</Filter>
     </ClInclude>
+    <ClInclude Include="internal\InteriorOffsets.hpp">
+      <Filter>internal</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

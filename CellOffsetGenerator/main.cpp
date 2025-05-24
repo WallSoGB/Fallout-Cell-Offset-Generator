@@ -1,5 +1,6 @@
 #include "BSMemory.hpp"
 #include "CellOffsetGenerator.hpp"
+#include "InteriorOffsets.hpp"
 #include "MultiThreadedIO.hpp"
 #include "nvse/PluginAPI.h"
 
@@ -30,7 +31,7 @@ EXTERN_DLL_EXPORT bool NVSEPlugin_Preload() {
 EXTERN_DLL_EXPORT bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* info) {
 	info->infoVersion = PluginInfo::kInfoVersion;
 	info->name = "Cell Offset Generator";
-	info->version = 102;
+	info->version = 103;
 
 	return !nvse->isEditor;
 }
@@ -38,6 +39,7 @@ EXTERN_DLL_EXPORT bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* i
 EXTERN_DLL_EXPORT bool NVSEPlugin_Load(NVSEInterface* nvse) {
 	if (!nvse->isEditor) {
 		OffsetGenerator::InitHooks();
+		InteriorOffsets::InitHooks();
 		auto pMessageInterface = static_cast<NVSEMessagingInterface*>(nvse->QueryInterface(kInterface_Messaging));
 		pMessageInterface->RegisterListener(nvse->GetPluginHandle(), "NVSE", NVSEMessageHandler);
 	}
