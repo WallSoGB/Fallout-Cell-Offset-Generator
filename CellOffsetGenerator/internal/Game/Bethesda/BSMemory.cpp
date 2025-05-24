@@ -12,9 +12,7 @@ namespace CurrentMemManager {
 }
 
 void	BSAllocatorInitializer();
-void	CreateHeapIfNotExisting(uint32_t auiHeapAddress, uint32_t auiCallAddress);
 int		(__cdecl* CreateHeap)(uint32_t aeSerialize);
-int		CreateHeapStub(uint32_t aeSerialize) { return 1; }
 bool	bInitialized = false;
 
 // -------------------------------------------------------------------------
@@ -56,7 +54,7 @@ SIZE_T BSSize(void* pvMem) {
 // This function is used to create game's heap if it doesn't exist
 // It's possible to load the plugin before game is even initialized
 // In those cases, malloc fails due to lack of heap - that's why we need to create it manually
-_declspec(noinline) void CreateHeapIfNotExisting(uint32_t auiHeapAddress, uint32_t auiCallAddress) {
+_declspec(noinline) void CreateHeapIfNotExisting(uint32_t auiHeapAddress, uint32_t auiCallAddress, uint32_t auiJumpAddress) {
 	if (*(HANDLE*)auiHeapAddress)
 		return;
 
@@ -64,10 +62,28 @@ _declspec(noinline) void CreateHeapIfNotExisting(uint32_t auiHeapAddress, uint32
 
 	bInitialized = true;
 
-	DWORD oldProtect;
-	VirtualProtect((void*)auiCallAddress, 4, PAGE_EXECUTE_READWRITE, &oldProtect);
-	*(uint32_t*)(auiCallAddress + 1) = uint32_t(CreateHeapStub) - auiCallAddress - 5;
-	VirtualProtect((void*)auiCallAddress, 4, oldProtect, &oldProtect);
+	auto PatchMemoryNop = [](uint32_t address, size_t size) {
+		DWORD d = 0;
+		VirtualProtect((LPVOID)address, size, PAGE_EXECUTE_READWRITE, &d);
+
+		for (SIZE_T i = 0; i < size; i++)
+			*(volatile BYTE*)(address + i) = 0x90;
+
+		VirtualProtect((LPVOID)address, size, d, &d);
+
+		FlushInstructionCache(GetCurrentProcess(), (LPVOID)address, size);
+	};
+
+	auto SafeWrite8 = [](SIZE_T addr, SIZE_T data) {
+		SIZE_T	oldProtect;
+
+		VirtualProtect((void*)addr, 4, PAGE_EXECUTE_READWRITE, &oldProtect);
+		*((uint8_t*)addr) = data;
+		VirtualProtect((void*)addr, 4, oldProtect, &oldProtect);
+	};
+
+	PatchMemoryNop(auiCallAddress, 5);
+	SafeWrite8(auiJumpAddress, 0xEB);
 }
 
 // This function sets up correct addresses based on the program
@@ -81,7 +97,7 @@ _declspec(noinline) void BSAllocatorInitializer() {
 		CurrentMemManager::Size			= (size_t(__thiscall*)(void*, void*))0x854720;
 		CreateHeap						= (int(__cdecl*)(uint32_t))0xC770C3;
 
-		CreateHeapIfNotExisting(0xF9907C, 0xC62B21);
+		CreateHeapIfNotExisting(0xF9907C, 0xC62B21, 0xC62B29);
 	}
 	else {
 		pMemoryManager					= (void*)0x11F6238;
@@ -91,6 +107,6 @@ _declspec(noinline) void BSAllocatorInitializer() {
 		CurrentMemManager::Size			= (size_t(__thiscall*)(void*, void*))0xAA44C0;
 		CreateHeap						= (int(__cdecl*)(uint32_t))0xEDDB6A;
 
-		CreateHeapIfNotExisting(0x12705BC, 0xECC3CB);
+		CreateHeapIfNotExisting(0x12705BC, 0xECC3CB, 0xECC3D3);
 	}
 }
