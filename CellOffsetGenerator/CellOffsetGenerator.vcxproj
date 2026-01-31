@@ -182,13 +182,12 @@ copy "$(TargetDir)$(TargetName).pdb" "C:\Symbols\$(TargetName).pdb"</Command>
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\shared\BSMemory\BSMemory.cpp" />
     <ClCompile Include="..\shared\SafeWrite\SafeWrite.cpp" />
     <ClCompile Include="..\shared\Utils\AutoScrapHeapBuffer.cpp" />
     <ClCompile Include="..\shared\Utils\DebugLog.cpp" />
     <ClCompile Include="internal\CellOffsetGenerator.cpp" />
     <ClCompile Include="internal\Game\Bethesda\BSFile.cpp" />
-    <ClCompile Include="internal\Game\Bethesda\BSMemory.cpp" />
-    <ClCompile Include="internal\Game\Bethesda\BSSystemFile.cpp" />
     <ClCompile Include="internal\Game\Bethesda\LoadingMenu.cpp" />
     <ClCompile Include="internal\Game\Bethesda\MemoryManager.cpp" />
     <ClCompile Include="internal\Game\Bethesda\ScrapHeap.cpp" />
@@ -203,14 +202,13 @@ copy "$(TargetDir)$(TargetName).pdb" "C:\Symbols\$(TargetName).pdb"</Command>
   <ItemGroup>
     <ClInclude Include="..\nvse\nvse\nvse_version.h" />
     <ClInclude Include="..\nvse\nvse\PluginAPI.h" />
+    <ClInclude Include="..\shared\BSMemory\BSMemory.hpp" />
     <ClInclude Include="..\shared\Defines.hpp" />
     <ClInclude Include="..\shared\SafeWrite\SafeWrite.hpp" />
     <ClInclude Include="..\shared\Utils\AutoScrapHeapBuffer.hpp" />
     <ClInclude Include="..\shared\Utils\DebugLog.hpp" />
     <ClInclude Include="internal\CellOffsetGenerator.hpp" />
     <ClInclude Include="internal\Game\Bethesda\BSFile.hpp" />
-    <ClInclude Include="internal\Game\Bethesda\BSMemory.hpp" />
-    <ClInclude Include="internal\Game\Bethesda\BSSystemFile.hpp" />
     <ClInclude Include="internal\Game\Bethesda\LoadingMenu.hpp" />
     <ClInclude Include="internal\Game\Bethesda\MemoryManager.hpp" />
     <ClInclude Include="internal\Game\Bethesda\Menu.hpp" />

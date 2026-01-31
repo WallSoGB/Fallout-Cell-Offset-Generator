@@ -1,4 +1,4 @@
-#include "BSMemory.hpp"
+#include "shared/BSMemory/BSMemory.hpp"
 #include "CellOffsetGenerator.hpp"
 #include "InteriorOffsets.hpp"
 #include "MultiThreadedIO.hpp"
@@ -31,7 +31,7 @@ EXTERN_DLL_EXPORT bool NVSEPlugin_Preload() {
 EXTERN_DLL_EXPORT bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* info) {
 	info->infoVersion = PluginInfo::kInfoVersion;
 	info->name = "Cell Offset Generator";
-	info->version = 105;
+	info->version = 106;
 
 	return !nvse->isEditor;
 }

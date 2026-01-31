@@ -1,5 +1,4 @@
 #include "CellOffsetGenerator.hpp"
-#include "BSSystemFile.hpp"
 #include "LoadingMenu.hpp"
 #include "ScrapHeap.hpp"
 #include "TESDataHandler.hpp"
@@ -49,7 +48,7 @@ XXH64_hash_t CreateHashForOffsets(XXH3_state_t* apHashState, uint32_t* const& ap
 	return XXH3_64bits_digest(apHashState);
 }
 
-class CellOffsetFile : public BSSystemFile {
+class CellOffsetFile {
 public:
 	static constexpr uint32_t MAGIC_NUMBER = 'FCOF';
 	static constexpr uint32_t FILE_VERSION = 1;
@@ -76,11 +75,41 @@ public:
 		uint32_t*		pOffsets		= 0;
 	};
 
-	CellOffsetFile(const char* apName, AccessMode aeWriteType, OpenMode aeOpenMode) : BSSystemFile(apName, aeWriteType, aeOpenMode, false) {};
-	~CellOffsetFile() {};
+	CellOffsetFile(const char* apName, uint32_t aeAccessMode, uint32_t aeOpenMode) {
+		hFile = CreateFile(apName, aeAccessMode, FILE_SHARE_READ, nullptr, aeOpenMode, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+	};
+	~CellOffsetFile() {
+		if (IsValid())
+			CloseHandle(hFile);
+	};
 
-	Header	kHeader;
-	Data	kData;
+	HANDLE		hFile;
+	Header		kHeader;
+	Data		kData;
+
+private:
+
+	BOOL Read(void* apBuffer, uint32_t auiSize, uint32_t& aruiBytesRead) {
+		return ReadFile(hFile, apBuffer, auiSize, reinterpret_cast<LPDWORD>(&aruiBytesRead), nullptr);
+	}
+
+	BOOL Write(const void* apBuffer, uint32_t auiSize, uint32_t& aruiBytesWritten) {
+		return WriteFile(hFile, apBuffer, auiSize, reinterpret_cast<LPDWORD>(&aruiBytesWritten), nullptr);
+	}
+
+	BOOL GetFileSize(uint64_t& arullFileSize) {
+		uint64_t ullFileSize = 0;
+		if (!GetFileSizeEx(hFile, reinterpret_cast<PLARGE_INTEGER>(&ullFileSize)))
+			return FALSE;
+		arullFileSize = ullFileSize;
+		return TRUE;
+	}
+
+	BOOL IsValid() const {
+		return hFile != INVALID_HANDLE_VALUE;
+	}
+
+public:
 
 	void FillData(const XXH64_hash_t& arFileHash, const uint32_t& arOffsetCount, uint32_t* const& apOffsets) {
 		kHeader.ullFileHash = arFileHash;
@@ -90,15 +119,12 @@ public:
 	}
 
 	ErrorCode LoadHeader(XXH64_hash_t& arFileHash) {
-		if (eState)
-			return UNKNOWN;
-
-		uint64_t ullFileSize;
-		if (FAILED(GetSize(ullFileSize)) || !ullFileSize) [[unlikely]]
+		uint64_t ullFileSize = 0;
+		if (!GetFileSize(ullFileSize) || !ullFileSize) [[unlikely]]
 			return EMPTY_FILE;
 
 		uint32_t uiBytesRead = 0;
-		if (FAILED(Read(&kHeader, sizeof(kHeader), &uiBytesRead)))
+		if (!Read(&kHeader, sizeof(kHeader), uiBytesRead))
 			return UNKNOWN;
 
 		if (uiBytesRead != sizeof(kHeader) || kHeader.uiHeaderID != MAGIC_NUMBER)
@@ -112,24 +138,24 @@ public:
 
 	ErrorCode LoadData(XXH3_state_t* apHashState) {
 		uint32_t uiBytesRead = 0;
-		Read(&kData.ullOffsetHash, sizeof(kData.ullOffsetHash), &uiBytesRead);
-		Read(&kData.uiOffsetCount, sizeof(kData.uiOffsetCount), &uiBytesRead);
+		Read(&kData.ullOffsetHash, sizeof(kData.ullOffsetHash), uiBytesRead);
+		Read(&kData.uiOffsetCount, sizeof(kData.uiOffsetCount), uiBytesRead);
 
 		if (kData.uiOffsetCount == UINT32_MAX) [[unlikely]]
 			return EMPTY_WORLD;
 
-		kData.pOffsets = BSNew<uint32_t>(kData.uiOffsetCount);
-		Read(kData.pOffsets, kData.uiOffsetCount * sizeof(uint32_t), &uiBytesRead);
+		kData.pOffsets = BSMemory::malloc<uint32_t>(kData.uiOffsetCount);
+		Read(kData.pOffsets, kData.uiOffsetCount * sizeof(uint32_t), uiBytesRead);
 
 		if (uiBytesRead != kData.uiOffsetCount * sizeof(kData.uiOffsetCount)) [[unlikely]] {
-			BSFree(kData.pOffsets);
+			BSMemory::free(kData.pOffsets);
 			kData.pOffsets = nullptr;
 			return READ_FAIL;
 		}
 
 		XXH64_hash_t ullCalculatedOffsetHash = CreateHashForOffsets(apHashState, kData.pOffsets, kData.uiOffsetCount);
 		if (kData.ullOffsetHash != ullCalculatedOffsetHash) [[unlikely]] {
-			BSFree(kData.pOffsets);
+			BSMemory::free(kData.pOffsets);
 			kData.pOffsets = nullptr;
 			return HASH_MISMATCH;
 		}
@@ -139,34 +165,31 @@ public:
 	}
 
 	void SaveHeader() {
-		if (eState)
-			return;
-
-		uint32_t uiWrittenBytes = 0;
-		Write(&kHeader, sizeof(kHeader), &uiWrittenBytes);
+		uint32_t uiBytesWritten = 0;
+		Write(&kHeader, sizeof(kHeader), uiBytesWritten);
 	}
 
 	void SaveData(XXH3_state_t* apHashState) {
-		uint32_t uiWrittenBytes = 0;
+		uint32_t uiBytesWritten = 0;
 
 		uint32_t uiOffsetDataSize = 0;
 		if (kData.uiOffsetCount != UINT32_MAX) {
 			uiOffsetDataSize = sizeof(uint32_t) * kData.uiOffsetCount;
 			kData.ullOffsetHash = CreateHashForOffsets(apHashState, kData.pOffsets, kData.uiOffsetCount);
-			Write(&kData.ullOffsetHash, sizeof(kData.ullOffsetHash), &uiWrittenBytes);
-			Write(&kData.uiOffsetCount, sizeof(kData.uiOffsetCount), &uiWrittenBytes);
-			Write(kData.pOffsets, uiOffsetDataSize, &uiWrittenBytes);
+			Write(&kData.ullOffsetHash, sizeof(kData.ullOffsetHash), uiBytesWritten);
+			Write(&kData.uiOffsetCount, sizeof(kData.uiOffsetCount), uiBytesWritten);
+			Write(kData.pOffsets, uiOffsetDataSize, uiBytesWritten);
 		}
 		else {
-			Write(&kData.ullOffsetHash, sizeof(kData.ullOffsetHash), &uiWrittenBytes);
-			Write(&kData.uiOffsetCount, sizeof(kData.uiOffsetCount), &uiWrittenBytes);
+			Write(&kData.ullOffsetHash, sizeof(kData.ullOffsetHash), uiBytesWritten);
+			Write(&kData.uiOffsetCount, sizeof(kData.uiOffsetCount), uiBytesWritten);
 		}
 
 	}
 
 	static bool ReadOffsets(const char* apFilePath, XXH64_hash_t aullHash, XXH3_state_t* apHashState, TESFile* apFile, TESWorldSpace* apWorld, TESWorldSpace::OFFSET_DATA* apOffsetData) {
-		CellOffsetFile kFile(apFilePath, BSSystemFile::AM_RDONLY, BSSystemFile::OM_NONE);
-		if (kFile.eState)
+		CellOffsetFile kFile(apFilePath, GENERIC_READ, OPEN_EXISTING);
+		if (!kFile.IsValid())
 			return false;
 
 		CellOffsetFile::ErrorCode eStatus = kFile.LoadHeader(aullHash);
@@ -219,10 +242,15 @@ public:
 
 	static void SaveOffsets(const char* apFolderPath, const char* apFilePath, XXH64_hash_t aullHash, XXH3_state_t* apHashState, uint32_t* const& apOffsets, uint32_t auiOffsetCount) {
 		CreateDirectory(apFolderPath, nullptr);
-		CellOffsetFile kFile(apFilePath, BSSystemFile::AM_WRONLY, BSSystemFile::OM_CREAT);
-		kFile.FillData(aullHash, auiOffsetCount, apOffsets);
-		kFile.SaveHeader();
-		kFile.SaveData(apHashState);
+		CellOffsetFile kFile(apFilePath, GENERIC_WRITE, CREATE_ALWAYS);
+		if (kFile.IsValid()) {
+			kFile.FillData(aullHash, auiOffsetCount, apOffsets);
+			kFile.SaveHeader();
+			kFile.SaveData(apHashState);
+		}
+		else {
+			_MESSAGE("SaveOffsets - Failed to create file %s", apFilePath);
+		}
 	}
 
 
@@ -325,7 +353,7 @@ uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* a
 	}
 	uint32_t uiAllocSize = sizeof(uint32_t) * uiOffsetCount;
 
-	AutoScrapHeapBuffer kHeap(uiAllocSize, 4, apHeap);
+	AutoScrapHeapBuffer kHeap(uiAllocSize, alignof(uint32_t), apHeap);
 	memset(kHeap.pData, 0, uiAllocSize);
 
 	for (int32_t y = iMinY; y <= iMaxY; y++) {
@@ -346,7 +374,7 @@ uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* a
 
 	bGeneratingOffsets = true;
 
-	pData->pCellFileOffsets = BSNew<uint32_t>(uiOffsetCount);
+	pData->pCellFileOffsets = BSMemory::malloc<uint32_t>(uiOffsetCount);
 	memcpy(pData->pCellFileOffsets, kHeap.pData, uiAllocSize);
 
 	return uiOffsetCount;

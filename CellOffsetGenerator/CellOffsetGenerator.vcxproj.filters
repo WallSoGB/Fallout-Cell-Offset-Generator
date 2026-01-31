@@ -25,6 +25,9 @@
     <Filter Include="internal\Game\Gamebryo">
       <UniqueIdentifier>{78e29f43-da9d-41d5-b790-85ebbaa08b6d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shared\BSMemory">
+      <UniqueIdentifier>{50633c64-b465-488e-bdfe-da20cd60362e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -38,12 +41,6 @@
       <Filter>shared\DebugLog</Filter>
     </ClCompile>
     <ClCompile Include="internal\Game\Bethesda\TESWorldSpace.cpp">
-      <Filter>internal\Game\Bethesda</Filter>
-    </ClCompile>
-    <ClCompile Include="internal\Game\Bethesda\BSSystemFile.cpp">
-      <Filter>internal\Game\Bethesda</Filter>
-    </ClCompile>
-    <ClCompile Include="internal\Game\Bethesda\BSMemory.cpp">
       <Filter>internal\Game\Bethesda</Filter>
     </ClCompile>
     <ClCompile Include="internal\Game\Bethesda\TESFile.cpp">
@@ -76,6 +73,9 @@
     <ClCompile Include="internal\Game\Bethesda\Tile.cpp">
       <Filter>internal\Game\Bethesda</Filter>
     </ClCompile>
+    <ClCompile Include="..\shared\BSMemory\BSMemory.cpp">
+      <Filter>shared\BSMemory</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shared\Defines.hpp">
@@ -100,12 +100,6 @@
       <Filter>internal\Game\Bethesda</Filter>
     </ClInclude>
     <ClInclude Include="internal\Game\Bethesda\TESWorldSpace.hpp">
-      <Filter>internal\Game\Bethesda</Filter>
-    </ClInclude>
-    <ClInclude Include="internal\Game\Bethesda\BSSystemFile.hpp">
-      <Filter>internal\Game\Bethesda</Filter>
-    </ClInclude>
-    <ClInclude Include="internal\Game\Bethesda\BSMemory.hpp">
       <Filter>internal\Game\Bethesda</Filter>
     </ClInclude>
     <ClInclude Include="internal\Game\Bethesda\TESFile.hpp">
@@ -143,6 +137,9 @@
     </ClInclude>
     <ClInclude Include="internal\InteriorOffsets.hpp">
       <Filter>internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\BSMemory\BSMemory.hpp">
+      <Filter>shared\BSMemory</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
