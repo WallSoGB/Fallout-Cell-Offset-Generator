@@ -31,7 +31,23 @@ EXTERN_DLL_EXPORT bool NVSEPlugin_Preload() {
 EXTERN_DLL_EXPORT bool NVSEPlugin_Query(const NVSEInterface* nvse, PluginInfo* info) {
 	info->infoVersion = PluginInfo::kInfoVersion;
 	info->name = "Cell Offset Generator";
-	info->version = 106;
+	info->version = 107;
+
+	HMODULE hMLF = GetModuleHandle("mlf.dll");
+	if (!hMLF)
+		return false;
+
+	typedef bool(__cdecl *Query)(const NVSEInterface*, PluginInfo*);
+	Query pQuery = reinterpret_cast<Query>(GetProcAddress(hMLF, "NVSEPlugin_Query"));
+	PluginInfo kMLFInfo = {};
+	if (pQuery && pQuery(nvse, &kMLFInfo) && kMLFInfo.version > 4) {
+		return !nvse->isEditor;
+	}
+	else {
+		MessageBox(nullptr, "Cell Offset Generator requires Mod Limit Fix v5 or higher. Please install the latest version of Mod Limit Fix!", "Cell Offset Generator", MB_OK | MB_ICONERROR);
+		ExitProcess(0);
+		return false;
+	}
 
 	return !nvse->isEditor;
 }
@@ -53,5 +69,7 @@ BOOL WINAPI DllMain(
 	LPVOID  lpreserved
 )
 {
+	if (dwReason == DLL_PROCESS_ATTACH)
+		DisableThreadLibraryCalls(static_cast<HMODULE>(hDllHandle));
 	return TRUE;
 }

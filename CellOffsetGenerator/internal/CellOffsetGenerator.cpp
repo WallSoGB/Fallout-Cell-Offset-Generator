@@ -9,6 +9,7 @@
 #include "shared/Utils/AutoScrapHeapBuffer.hpp"
 
 #include <algorithm>
+#include <atomic>
 
 #define XXH_INLINE_ALL
 #define XXH_ENABLE_AUTOVECTORIZE
@@ -21,31 +22,48 @@
 #endif
 
 static const char OFFSETS_DIR[] = "Data\\CellOffsets";
-uint32_t uiTotalWorlds = 0;
-volatile bool bGeneratingOffsets = false;
-volatile uint32_t uiProcessedWorlds = 0;
+volatile bool		bGeneratingOffsets = false;
+volatile uint32_t	uiTotalWorlds = 0;
+volatile uint32_t	uiProcessedWorlds = 0;
 uint32_t uiLastValue = 0;
 
-XXH64_hash_t CreateHashForFile(TESFile* apFile, XXH3_state_t* apHashState) {
-	constexpr uint32_t uiBufferSize = 8192;
-
+static XXH64_hash_t __fastcall CreateHashForFile(TESFile* apFile, XXH3_state_t* apHashState) noexcept {
 	XXH3_64bits_reset(apHashState);
-	apFile->TESRewind(false);
-	apFile->pFile->ChangeBufferSize(uiBufferSize);
-	char buffer[uiBufferSize];
-	size_t count;
-
-	while ((count = apFile->pFile->Read(&buffer, uiBufferSize)) != 0) {
-		XXH3_64bits_update(apHashState, buffer, count);
+	
+	HANDLE hFileMapping = CreateFileMappingA(apFile->pFile->m_hFile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+	if (hFileMapping) [[likely]] {
+		void* pBuffer = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
+		if (!pBuffer) [[unlikely]] {
+			CloseHandle(hFileMapping);
+			_MESSAGE("Failed to map view of file for %s, error code: %u", apFile->GetName(), GetLastError());
+			DebugBreak();
+			return 0;
+		}
+		XXH3_64bits_update(apHashState, pBuffer, apFile->uiFileSize);
+		UnmapViewOfFile(pBuffer);
+		CloseHandle(hFileMapping);
+	}
+	else {
+		_MESSAGE("Failed to create file mapping for %s, error code: %u", apFile->GetName(), GetLastError());
+		DebugBreak();
+		return 0;
 	}
 
 	return XXH3_64bits_digest(apHashState);
 }
 
-XXH64_hash_t CreateHashForOffsets(XXH3_state_t* apHashState, uint32_t* const& apOffsets, uint32_t auiOffsetCount) {
+static XXH64_hash_t __fastcall CreateHashForOffsets(XXH3_state_t* apHashState, uint32_t* const& apOffsets, uint32_t auiOffsetCount) noexcept {
 	XXH3_64bits_reset(apHashState);
 	XXH3_64bits_update(apHashState, apOffsets, auiOffsetCount * sizeof(uint32_t));
 	return XXH3_64bits_digest(apHashState);
+}
+
+static void __fastcall CreateEmptyOffset(TESWorldSpace::OFFSET_DATA* apOffsetData) noexcept {
+	apOffsetData->pCellFileOffsets = BSMemory::malloc<uint32_t>();
+	apOffsetData->pCellFileOffsets[0] = 0;
+
+	apOffsetData->kOffsetMaxCoords = 0.f;
+	apOffsetData->kOffsetMinCoords = 0.f;
 }
 
 class CellOffsetFile {
@@ -60,6 +78,8 @@ public:
 		HASH_MISMATCH,
 		EMPTY_WORLD,
 		READ_FAIL,
+		VERSION_MISMATCH,
+		CELL_COUNT_CHANGE,
 		UNKNOWN			= UINT32_MAX,
 	};
 
@@ -75,10 +95,10 @@ public:
 		uint32_t*		pOffsets		= 0;
 	};
 
-	CellOffsetFile(const char* apName, uint32_t aeAccessMode, uint32_t aeOpenMode) {
+	CellOffsetFile(const char* apName, uint32_t aeAccessMode, uint32_t aeOpenMode) noexcept {
 		hFile = CreateFile(apName, aeAccessMode, FILE_SHARE_READ, nullptr, aeOpenMode, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
 	};
-	~CellOffsetFile() {
+	~CellOffsetFile() noexcept {
 		if (IsValid())
 			CloseHandle(hFile);
 	};
@@ -89,15 +109,15 @@ public:
 
 private:
 
-	BOOL Read(void* apBuffer, uint32_t auiSize, uint32_t& aruiBytesRead) {
+	BOOL __fastcall Read(void* apBuffer, uint32_t auiSize, uint32_t& aruiBytesRead) noexcept {
 		return ReadFile(hFile, apBuffer, auiSize, reinterpret_cast<LPDWORD>(&aruiBytesRead), nullptr);
 	}
 
-	BOOL Write(const void* apBuffer, uint32_t auiSize, uint32_t& aruiBytesWritten) {
+	BOOL __fastcall Write(const void* apBuffer, uint32_t auiSize, uint32_t& aruiBytesWritten) noexcept {
 		return WriteFile(hFile, apBuffer, auiSize, reinterpret_cast<LPDWORD>(&aruiBytesWritten), nullptr);
 	}
 
-	BOOL GetFileSize(uint64_t& arullFileSize) {
+	BOOL __fastcall GetFileSize(uint64_t& arullFileSize) const noexcept {
 		uint64_t ullFileSize = 0;
 		if (!GetFileSizeEx(hFile, reinterpret_cast<PLARGE_INTEGER>(&ullFileSize)))
 			return FALSE;
@@ -105,20 +125,20 @@ private:
 		return TRUE;
 	}
 
-	BOOL IsValid() const {
+	BOOL __fastcall IsValid() const noexcept {
 		return hFile != INVALID_HANDLE_VALUE;
 	}
 
 public:
 
-	void FillData(const XXH64_hash_t& arFileHash, const uint32_t& arOffsetCount, uint32_t* const& apOffsets) {
+	void __fastcall FillData(const XXH64_hash_t& arFileHash, const uint32_t& arOffsetCount, uint32_t* const& apOffsets) noexcept {
 		kHeader.ullFileHash = arFileHash;
 
 		kData.uiOffsetCount = arOffsetCount;
 		kData.pOffsets = const_cast<uint32_t*>(apOffsets);
 	}
 
-	ErrorCode LoadHeader(XXH64_hash_t& arFileHash) {
+	ErrorCode __fastcall LoadHeader(XXH64_hash_t& arFileHash) noexcept {
 		uint64_t ullFileSize = 0;
 		if (!GetFileSize(ullFileSize) || !ullFileSize) [[unlikely]]
 			return EMPTY_FILE;
@@ -130,13 +150,16 @@ public:
 		if (uiBytesRead != sizeof(kHeader) || kHeader.uiHeaderID != MAGIC_NUMBER)
 			return WRONG_FILE;
 
+		if (kHeader.uiVersion != FILE_VERSION)
+			return VERSION_MISMATCH;
+
 		if (kHeader.ullFileHash == arFileHash)
 			return SUCCESS;
 		else
 			return HASH_MISMATCH;
 	}
 
-	ErrorCode LoadData(XXH3_state_t* apHashState) {
+	ErrorCode __fastcall LoadData(XXH3_state_t* apHashState, uint32_t auiCurrentCellCount) noexcept {
 		uint32_t uiBytesRead = 0;
 		Read(&kData.ullOffsetHash, sizeof(kData.ullOffsetHash), uiBytesRead);
 		Read(&kData.uiOffsetCount, sizeof(kData.uiOffsetCount), uiBytesRead);
@@ -144,10 +167,14 @@ public:
 		if (kData.uiOffsetCount == UINT32_MAX) [[unlikely]]
 			return EMPTY_WORLD;
 
-		kData.pOffsets = BSMemory::malloc<uint32_t>(kData.uiOffsetCount);
-		Read(kData.pOffsets, kData.uiOffsetCount * sizeof(uint32_t), uiBytesRead);
+		if (kData.uiOffsetCount != auiCurrentCellCount)
+			return CELL_COUNT_CHANGE;
 
-		if (uiBytesRead != kData.uiOffsetCount * sizeof(kData.uiOffsetCount)) [[unlikely]] {
+		const uint32_t uiOffsetBytesCount = kData.uiOffsetCount * sizeof(uint32_t);
+		kData.pOffsets = BSMemory::malloc<uint32_t>(kData.uiOffsetCount);
+		Read(kData.pOffsets, uiOffsetBytesCount, uiBytesRead);
+
+		if (uiBytesRead != uiOffsetBytesCount) [[unlikely]] {
 			BSMemory::free(kData.pOffsets);
 			kData.pOffsets = nullptr;
 			return READ_FAIL;
@@ -164,12 +191,12 @@ public:
 		}
 	}
 
-	void SaveHeader() {
+	void __fastcall SaveHeader() noexcept {
 		uint32_t uiBytesWritten = 0;
 		Write(&kHeader, sizeof(kHeader), uiBytesWritten);
 	}
 
-	void SaveData(XXH3_state_t* apHashState) {
+	void __fastcall SaveData(XXH3_state_t* apHashState) noexcept {
 		uint32_t uiBytesWritten = 0;
 
 		uint32_t uiOffsetDataSize = 0;
@@ -184,10 +211,9 @@ public:
 			Write(&kData.ullOffsetHash, sizeof(kData.ullOffsetHash), uiBytesWritten);
 			Write(&kData.uiOffsetCount, sizeof(kData.uiOffsetCount), uiBytesWritten);
 		}
-
 	}
 
-	static bool ReadOffsets(const char* apFilePath, XXH64_hash_t aullHash, XXH3_state_t* apHashState, TESFile* apFile, TESWorldSpace* apWorld, TESWorldSpace::OFFSET_DATA* apOffsetData) {
+	static bool __fastcall ReadOffsets(const char* apFilePath, XXH64_hash_t aullHash, XXH3_state_t* apHashState, TESFile* apFile, TESWorldSpace* apWorld, TESWorldSpace::OFFSET_DATA* apOffsetData) noexcept {
 		CellOffsetFile kFile(apFilePath, GENERIC_READ, OPEN_EXISTING);
 		if (!kFile.IsValid())
 			return false;
@@ -198,37 +224,36 @@ public:
 				_MESSAGE("ReadOffsets - File %s is empty", apFilePath);
 			else if (eStatus == CellOffsetFile::HASH_MISMATCH)
 				_MESSAGE("ReadOffsets - Hash mismatch for %s, expected %016llX, got %016llX", apFilePath, aullHash, kFile.kHeader.ullFileHash);
+			else if (eStatus == CellOffsetFile::VERSION_MISMATCH) {
+				if (kFile.kHeader.uiVersion > FILE_VERSION)
+					_MESSAGE("ReadOffsets - File has newer version (%i) than supported (%i)", kFile.kHeader.uiVersion, FILE_VERSION);
+				else
+					_MESSAGE("ReadOffsets - File has older version (%i), upgrading to %i", kFile.kHeader.uiVersion, FILE_VERSION);
+			}
 			return false;
 		}
 
-		eStatus = kFile.LoadData(apHashState);
+		const int32_t iMinX = int32_t(apOffsetData->kOffsetMinCoords.x) >> 12;
+		const int32_t iMinY = int32_t(apOffsetData->kOffsetMinCoords.y) >> 12;
+		const int32_t iMaxX = int32_t(apOffsetData->kOffsetMaxCoords.x) >> 12;
+		const int32_t iMaxY = int32_t(apOffsetData->kOffsetMaxCoords.y) >> 12;
+
+		const uint32_t uiTotalCellCount = (iMaxX - iMinX + 1) * (iMaxY - iMinY + 1);
+
+		eStatus = kFile.LoadData(apHashState, uiTotalCellCount);
 		if (eStatus == CellOffsetFile::SUCCESS) {
 			apOffsetData->pCellFileOffsets = kFile.kData.pOffsets;
 			return true;
 		}
+		else if (eStatus == CellOffsetFile::EMPTY_WORLD) {
+			DEBUG_MSG("ReadOffsets - World %s in file %s is empty", apWorld->GetFormEditorID(), apFile->GetName());
 
-		if (eStatus == CellOffsetFile::EMPTY_WORLD) {
-			_MESSAGE("ReadOffsets - World %s in file %s is empty", apWorld->GetFormEditorID(), apFile->GetName());
-#if 0
-			const int32_t iMaxX = int32_t(apOffsetData->kOffsetMaxCoords.x) >> 12;
-			const int32_t iMaxY = int32_t(apOffsetData->kOffsetMaxCoords.y) >> 12;
-
-			uint32_t uiMaxOffsetCount = apWorld->GetIndexForCellCoord(apFile, iMaxX, iMaxY);
-			if (uiMaxOffsetCount == UINT32_MAX)
-				DEBUG_MSG("ReadOffsets - Invalid coords for world %s in file %s", apWorld->GetFormEditorID(), apFile->GetName());
-				return true;
-
-			if (uiMaxOffsetCount == 0) [[unlikely]] {
-				DEBUG_MSG("ReadOffsets - No offsets for %s", apWorld->GetFormEditorID());
-				return true;
-			}
-
-			apOffsetData->pCellFileOffsets = BSNew<uint32_t>(uiMaxOffsetCount);
-			if (apOffsetData->pCellFileOffsets)
-				memset(apOffsetData->pCellFileOffsets, 0, sizeof(uint32_t) * uiMaxOffsetCount);
-#endif
+			CreateEmptyOffset(apOffsetData);
 
 			return true;
+		}
+		else if (eStatus == CellOffsetFile::CELL_COUNT_CHANGE) {
+			_MESSAGE("ReadOffsets - World %s offset array size mismatch (%i calculated, %i saved)", apWorld->GetFormEditorID(), uiTotalCellCount, kFile.kData.uiOffsetCount);
 		}
 		else if (eStatus == CellOffsetFile::READ_FAIL) {
 			_MESSAGE("ReadOffsets - Failed to read %i offsets from %s", kFile.kData.uiOffsetCount, apFilePath);
@@ -240,7 +265,7 @@ public:
 		return false;
 	}
 
-	static void SaveOffsets(const char* apFolderPath, const char* apFilePath, XXH64_hash_t aullHash, XXH3_state_t* apHashState, uint32_t* const& apOffsets, uint32_t auiOffsetCount) {
+	static void __fastcall SaveOffsets(const char* apFolderPath, const char* apFilePath, XXH64_hash_t aullHash, XXH3_state_t* apHashState, uint32_t* const& apOffsets, uint32_t auiOffsetCount) noexcept {
 		CreateDirectory(apFolderPath, nullptr);
 		CellOffsetFile kFile(apFilePath, GENERIC_WRITE, CREATE_ALWAYS);
 		if (kFile.IsValid()) {
@@ -256,11 +281,11 @@ public:
 
 };
 
-OffsetGenerator::OffsetGenerator() {
+OffsetGenerator::OffsetGenerator() noexcept {
 	Start();
 }
 
-OffsetGenerator::~OffsetGenerator() {
+OffsetGenerator::~OffsetGenerator() noexcept {
 	for (OffsetGenThread& kThread : kThreads)
 		kThread.~OffsetGenThread();
 
@@ -271,9 +296,12 @@ OffsetGenerator::~OffsetGenerator() {
 	uiTotalWorlds		= 0;
 	uiProcessedWorlds	= 0;
 	uiLastValue			= 0;
+
+	// Release memory we allocated on threads
+	ScrapHeapManager::GetSingleton()->FreeAllBuffers();
 }
 
-void OffsetGenerator::RenderUI() {
+void OffsetGenerator::RenderUI() noexcept {
 	if (!bRunning)
 		return;
 
@@ -296,7 +324,7 @@ void OffsetGenerator::RenderUI() {
 		}
 
 		if (pUI) {
-			uint32_t uiProgressID = Tile::TextToTrait("_progress");
+			const uint32_t uiProgressID = Tile::TextToTrait("_progress");
 			while (!bDone) {
 				if (uiLastValue != uiProcessedWorlds || bFirstRun) {
 					float fProgress = float(uiProcessedWorlds) / uiTotalWorlds;
@@ -317,15 +345,14 @@ void OffsetGenerator::RenderUI() {
 	bRunning = false;
 }
 
-uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* apFile, ScrapHeap* apHeap) {
-	const char* pWorldName = apWorld->GetFormEditorID();
+uint32_t __fastcall OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* apFile, ScrapHeap* apHeap) noexcept {
 	auto pData = apWorld->GetOffsetData(apFile);
 	if (!pData) {
 		return 0;
 	}
 
 	if (pData->pCellFileOffsets) [[unlikely]] {
-		DEBUG_MSG("GenerateCellOffsets - %s - Cell offsets already generated for %s", pWorldName, apFile->GetName());
+		DEBUG_MSG("GenerateCellOffsets - %s - Cell offsets already generated for %s", apWorld->GetFormEditorID(), apFile->GetName());
 		return 0;
 	}
 
@@ -334,34 +361,32 @@ uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* a
 	const int32_t iMaxX = int32_t(pData->kOffsetMaxCoords.x) >> 12;
 	const int32_t iMaxY = int32_t(pData->kOffsetMaxCoords.y) >> 12;
 
+	const uint32_t uiTotalCellCount = (iMaxX - iMinX + 1) * (iMaxY - iMinY + 1);
+
 	// No cells
-	if (iMinX == -524288) [[unlikely]] {
-		return 0;
+	if (iMinX == -524288 || uiTotalCellCount <= 1) [[unlikely]] {
+		DEBUG_MSG("GenerateCellOffsets - World %s in file %s reports as empty", apWorld->GetFormEditorID(), apFile->GetName());
+		return UINT32_MAX;
 	}
 
 	if (iMaxX - iMinX == -1 || iMaxY - iMinY == -1 || iMaxX - iMinX + 1 >= 1000 || iMaxY - iMinY + 1 >= 1000) [[unlikely]] {
-		_MESSAGE("GenerateCellOffsets - File %s has invalid coords for %s", apFile->GetName(), pWorldName);
+		_MESSAGE("GenerateCellOffsets - File %s has invalid coords for %s", apFile->GetName(), apWorld->GetFormEditorID());
 		return 0;
 	}
-
-	const uint32_t uiTotalCellCount = (iMaxX - iMinX) * (iMaxY - iMinY);
 
 	uint32_t uiCellCount = 0;
-	uint32_t uiOffsetCount = apWorld->GetIndexForCellCoord(apFile, iMaxX, iMaxY);
-	if (!uiOffsetCount) [[unlikely]] {
-		return 0;
-	}
-	uint32_t uiAllocSize = sizeof(uint32_t) * uiOffsetCount;
+	const uint32_t uiAllocSize = sizeof(uint32_t) * uiTotalCellCount;
 
 	AutoScrapHeapBuffer kHeap(uiAllocSize, alignof(uint32_t), apHeap);
 	memset(kHeap.pData, 0, uiAllocSize);
 
+	DEBUG_MSG("GenerateCellOffsets - Scanning file %s for world %s", apFile->GetName(), apWorld->GetFormEditorID());
 	for (int32_t y = iMinY; y <= iMaxY; y++) {
 		for (int32_t x = iMinX; x <= iMaxX; x++) {
 			TESWorldSpace::uiLastOffset = 0;
 			uint32_t uiKey = apWorld->GetIndexForCellCoord(apFile, x, y);
-			if (apWorld->FindCellInFile(apFile, x, y)) {
-				uiCellCount++;
+			if (uiKey != UINT32_MAX && apWorld->FindCellInFile(apFile, x, y)) {
+				++uiCellCount;
 				reinterpret_cast<uint32_t*>(kHeap.pData)[uiKey] = TESWorldSpace::uiLastOffset - pData->uiFileOffset;
 			}
 		}
@@ -369,18 +394,19 @@ uint32_t OffsetGenerator::GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* a
 
 	if (uiCellCount == 0) [[unlikely]] {
 		DEBUG_MSG("GenerateCellOffsets - World %s in file %s is empty", apWorld->GetFormEditorID(), apFile->GetName());
+		CreateEmptyOffset(pData);
 		return UINT32_MAX;
 	}
 
 	bGeneratingOffsets = true;
 
-	pData->pCellFileOffsets = BSMemory::malloc<uint32_t>(uiOffsetCount);
+	pData->pCellFileOffsets = BSMemory::malloc<uint32_t>(uiTotalCellCount);
 	memcpy(pData->pCellFileOffsets, kHeap.pData, uiAllocSize);
 
-	return uiOffsetCount;
+	return uiTotalCellCount;
 }
 
-void OffsetGenerator::InitHooks() {
+void OffsetGenerator::InitHooks() noexcept {
 	// Remove master file checks
 	{
 		// TESWorldSpace::Load
@@ -414,7 +440,7 @@ void OffsetGenerator::InitHooks() {
 	}
 }
 
-DWORD WINAPI OffsetGenerator::ThreadProc(LPVOID lpThreadParameter) {
+DWORD WINAPI OffsetGenerator::ThreadProc(LPVOID lpThreadParameter) noexcept {
 	OffsetGenerator* pGenerator = static_cast<OffsetGenerator*>(lpThreadParameter);
 	{
 		std::vector<TESFile*> kFilesBySize;
@@ -427,7 +453,7 @@ DWORD WINAPI OffsetGenerator::ThreadProc(LPVOID lpThreadParameter) {
 					continue;
 
 				kFilesBySize.push_back(pFile);
-				uiTotalWorlds++;
+				++uiTotalWorlds;
 			}
 		}
 
@@ -484,7 +510,7 @@ DWORD WINAPI OffsetGenerator::ThreadProc(LPVOID lpThreadParameter) {
 	return 0;
 }
 
-void OffsetGenerator::Start() {
+void OffsetGenerator::Start() noexcept {
 	if (hMainThread)
 		return;
 
@@ -517,10 +543,11 @@ void OffsetGenerator::Start() {
 	bRunning = true;
 }
 
-void CreateOffsetsForFile(TESFile* apFile, XXH3_state_t* apHashState, ScrapHeap* apHeap = nullptr) {
-	XXH64_hash_t ullHash = CreateHashForFile(apFile, apHashState);
+void __fastcall CreateOffsetsForFile(TESFile* apFile, XXH3_state_t* apHashState, ScrapHeap* apHeap) noexcept {
+	const XXH64_hash_t ullHash = CreateHashForFile(apFile, apHashState);
 
 	char cFolderPath[MAX_PATH];
+	char cFilePath[MAX_PATH];
 	sprintf_s(cFolderPath, "%s\\%s", OFFSETS_DIR, apFile->GetName());
 	for (TESWorldSpace* pWorld : TESDataHandler::GetSingleton()->kWorldSpaces) {
 		auto pOffsetData = pWorld->GetOffsetData(apFile);
@@ -530,45 +557,44 @@ void CreateOffsetsForFile(TESFile* apFile, XXH3_state_t* apHashState, ScrapHeap*
 
 		// Plugin already has offsets for this worldspace
 		if (pOffsetData->pCellFileOffsets) {
-			uiProcessedWorlds++;
+			++uiProcessedWorlds;
 			continue;
 		}
 
-		char cFilePath[MAX_PATH];
 		sprintf_s(cFilePath, "%s\\%s.fco", cFolderPath, pWorld->GetFormEditorID());
 
 		if (CellOffsetFile::ReadOffsets(cFilePath, ullHash, apHashState, apFile, pWorld, pOffsetData)) {
-			uiProcessedWorlds++;
+			++uiProcessedWorlds;
 			continue;
 		}
 
-		uint32_t uiOffsetCount = OffsetGenerator::GenerateCellOffsets(pWorld, apFile, apHeap);
-		if (!uiOffsetCount || !pOffsetData->pCellFileOffsets) {
-			uiProcessedWorlds++;
+		const uint32_t uiOffsetCount = OffsetGenerator::GenerateCellOffsets(pWorld, apFile, apHeap);
+		if (!uiOffsetCount || (!pOffsetData->pCellFileOffsets && uiOffsetCount != UINT32_MAX)) {
+			++uiProcessedWorlds;
 			continue;
 		}
 
 		CellOffsetFile::SaveOffsets(cFolderPath, cFilePath, ullHash, apHashState, pOffsetData->pCellFileOffsets, uiOffsetCount);
-		uiProcessedWorlds++;
+		++uiProcessedWorlds;
 	}
 }
 
-OffsetGenThread::OffsetGenThread() {
+OffsetGenThread::OffsetGenThread() noexcept {
 	hThread = nullptr;
 }
 
-OffsetGenThread::~OffsetGenThread() {
+OffsetGenThread::~OffsetGenThread() noexcept {
 	if (hThread)
 		CloseHandle(hThread);
 
 	hThread = nullptr;
 }
 
-void OffsetGenThread::AddFile(const TESFile* apFile) {
+void OffsetGenThread::AddFile(const TESFile* apFile) noexcept {
 	kFiles.push_back(const_cast<TESFile*>(apFile));
 }
 
-DWORD __stdcall OffsetGenThread::ThreadProc(LPVOID lpThreadParameter) {
+DWORD __stdcall OffsetGenThread::ThreadProc(LPVOID lpThreadParameter) noexcept {
 	OffsetGenThread* pThread = static_cast<OffsetGenThread*>(lpThreadParameter);
 
 	pThread->Run();
@@ -576,7 +602,7 @@ DWORD __stdcall OffsetGenThread::ThreadProc(LPVOID lpThreadParameter) {
 	return 0;
 }
 
-bool OffsetGenThread::Run() {
+bool OffsetGenThread::Run() noexcept {
 	if (kFiles.empty())
 		return false;
 

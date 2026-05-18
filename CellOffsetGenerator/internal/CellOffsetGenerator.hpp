@@ -9,10 +9,10 @@ class TESWorldSpace;
 
 class OffsetGenThread {
 public:
-	OffsetGenThread();
-	~OffsetGenThread();
+	OffsetGenThread() noexcept;
+	~OffsetGenThread() noexcept;
 
-	void AddFile(const TESFile* apFile);
+	void AddFile(const TESFile* apFile) noexcept;
 
 protected:
 	friend class OffsetGenerator;
@@ -20,23 +20,23 @@ protected:
 	HANDLE					hThread = nullptr;
 	std::vector<TESFile*>	kFiles;
 
-	static DWORD WINAPI ThreadProc(LPVOID lpThreadParameter);
+	static DWORD WINAPI ThreadProc(LPVOID lpThreadParameter) noexcept;
 
-	bool Run();
+	bool Run() noexcept;
 };
 
 class OffsetGenerator {
 public:
-	OffsetGenerator();
-	~OffsetGenerator();
+	OffsetGenerator() noexcept;
+	~OffsetGenerator() noexcept;
 
-	void Start();
+	void Start() noexcept;
 
-	void RenderUI();
+	void RenderUI() noexcept;
 
-	static uint32_t GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* apFile, ScrapHeap* apHeap = nullptr);
+	static uint32_t __fastcall GenerateCellOffsets(TESWorldSpace* apWorld, TESFile* apFile, ScrapHeap* apHeap = nullptr) noexcept;
 
-	static void InitHooks();
+	static void InitHooks() noexcept;
 
 private:
 	bool						 bRunning		= false;
@@ -45,5 +45,5 @@ private:
 	std::vector<HANDLE>			 kThreadHandles;
 	std::vector<OffsetGenThread> kThreads;
 
-	static DWORD WINAPI ThreadProc(LPVOID lpThreadParameter);
+	static DWORD WINAPI ThreadProc(LPVOID lpThreadParameter) noexcept;
 };

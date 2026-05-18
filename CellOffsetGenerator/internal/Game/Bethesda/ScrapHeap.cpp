@@ -10,23 +10,13 @@ ScrapHeapManager* ScrapHeapManager::GetSingleton() {
 #endif
 }
 
-// GAME - 0xAA5B70
-// GECK - 0x856090
-void ScrapHeapManager::ReleaseBuffer(void* apAddress, SIZE_T aSize) {
+// GAME - 0xAA5C80
+// GECK - 0x8561A0
+void ScrapHeapManager::FreeAllBuffers() {
 #ifdef GAME
-	ThisCall(0xAA5B70, this, apAddress, aSize);
+	ThisCall(0xAA5C80, this);
 #else
-	ThisCall(0x856090, this, apAddress, aSize);
-#endif
-}
-
-// GAME - 0xAA59B0
-// GECK - 0x855ED0
-void* ScrapHeapManager::RequestBuffer(SIZE_T& arSize) {
-#ifdef GAME
-	return ThisCall<void*>(0xAA59B0, this, &arSize);
-#else
-	return ThisCall<void*>(0x855ED0, this, &arSize);
+	ThisCall(0x8561A0, this);
 #endif
 }
 

@@ -23,7 +23,10 @@ public:
 	uint32_t	m_uiPos;
 	uint32_t	m_uiAbsolutePos;
 	char*		m_pBuffer;
-	FILE*		m_pFile;
+	union {
+		HANDLE	__restrict m_hFile;
+		FILE*	__restrict m_pFile;
+	};
 	OpenMode	m_eMode;
 	bool		m_bGood;
 };

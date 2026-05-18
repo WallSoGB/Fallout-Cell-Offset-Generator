@@ -3,22 +3,22 @@
 #include "TESFile.hpp"
 #include "TESObjectCELL.hpp"
 
-#include <map>
+#include <unordered_map>
 
 namespace InteriorOffsets {
 
-	typedef std::map<uint32_t, uint32_t> InteriorOffsets;
-	std::map<TESFile*, InteriorOffsets*> kInteriorOffsetMap;
-	thread_local TESFile* pCurrentFile = nullptr;
+	typedef std::unordered_map<uint32_t, uint32_t> InteriorOffsets;
+	std::unordered_map<const TESFile*, InteriorOffsets*> kInteriorOffsetMap;
+	thread_local const TESFile* pCurrentFile = nullptr;
 
-	InteriorOffsets* GetOffsetMapForFile(TESFile* apFile) {
+	InteriorOffsets* __fastcall GetOffsetMapForFile(const TESFile* apFile) noexcept {
 		auto it = kInteriorOffsetMap.find(apFile);
 		if (it != kInteriorOffsetMap.end()) [[likely]]
 			return it->second;
 		return nullptr;
 	}
 
-	void AddOffsetForFile(TESFile* apFile, uint32_t auiFormID, uint32_t auiOffset) {
+	void __fastcall AddOffsetForFile(const TESFile* apFile, uint32_t auiFormID, uint32_t auiOffset) noexcept {
 		InteriorOffsets* pOffsets = GetOffsetMapForFile(apFile);
 		if (pOffsets) [[likely]] {
 			pOffsets->insert({ auiFormID, auiOffset });
@@ -30,7 +30,7 @@ namespace InteriorOffsets {
 		}
 	}
 
-	uint32_t GetOffsetForFile(TESFile* apFile, uint32_t auiFormID) {
+	uint32_t __fastcall GetOffsetForFile(const TESFile* apFile, uint32_t auiFormID) noexcept {
 		InteriorOffsets* pOffsets = GetOffsetMapForFile(apFile);
 		if (pOffsets) [[likely]] {
 			auto it = pOffsets->find(auiFormID);
@@ -40,46 +40,45 @@ namespace InteriorOffsets {
 		return 0;
 	}
 
-	class TESFile : public ::TESFile {
+	class TESFileEx : public TESFile {
 	public:
 		// Called when loading cell forms on game startup
 		// Store currently loaded file
-		uint32_t GetOffset() {
+		uint32_t GetOffset() noexcept {
 			pCurrentFile = this;
 			return uiFileOffset;
 		}
 
 		// Called when loading cell data
 		// Set offset if it exists in our map. Input is actually a form ID from TESObjectCELL::GetInteriorOffset below
-		bool SetOffset(uint32_t auiOffset) {
-			// ESP makes cell contents always loaded, and interior (compared to exterior) are also always loaded
+		bool SetOffset(uint32_t auiOffset) noexcept {
+			// ESP makes cell contents always loaded, and interior (compared to exterior) cells are also always loaded
 			// So there's no situation where game ever looks for an interior cell, only its data
 			// Thus, only master files have offsets
 			if (!IsMaster()) 
 				return false;
 
 			bool bResult = false;
-			const uint32_t uiNakedID = auiOffset;
-			::TESFile* pFile = GetThreadSafeParent();
+			const TESFile* pFile = GetThreadSafeParent();
 			if (!pFile) [[likely]]
 				pFile = this;
-			uint32_t uiActualOffset = GetOffsetForFile(pFile, uiNakedID);
+			uint32_t uiActualOffset = GetOffsetForFile(pFile, auiOffset);
 			if (uiActualOffset) [[likely]]
-				bResult = ::TESFile::SetOffset(uiActualOffset);
+				bResult = TESFile::SetOffset(uiActualOffset);
 			return bResult;
 		}
 	};
 
-	class TESObjectCELL : public ::TESObjectCELL {
+	class TESObjectCELLEx : public ::TESObjectCELL {
 	public:
 		// Called when loading cell forms on game startup
 		// Add interior offset to our maps
-		void SetInteriorOffset(uint32_t auiOffset) {
-			::TESFile* pFile = pCurrentFile->GetThreadSafeParent();
+		void SetInteriorOffset(uint32_t auiOffset) noexcept {
+			const TESFile* pFile = pCurrentFile->GetThreadSafeParent();
 			if (!pFile) [[likely]]
 				pFile = pCurrentFile;
-			const uint32_t uiNakedID = GetFormID() & 0x00FFFFFF;
-			AddOffsetForFile(pFile, uiNakedID, auiOffset);
+
+			AddOffsetForFile(pFile, GetFormID(), auiOffset);
 			pCurrentFile = nullptr;
 
 			// Original Code
@@ -88,18 +87,18 @@ namespace InteriorOffsets {
 
 		// Called when loading cell data
 		// Get form ID instead of the offset - we'll get the offset in TESFile::SetOffset above
-		uint32_t GetInteriorOffset() {
-			return GetFormID() & 0x00FFFFFF;
+		uint32_t GetInteriorOffset() noexcept {
+			return GetFormID();
 		}
 	};
 
-	void InitHooks() {
+	void InitHooks() noexcept {
 		// TESObjectCELL::Load
-		ReplaceCallEx(0x54232F, &TESFile::GetOffset);
-		ReplaceCallEx(0x542C1C, &TESObjectCELL::SetInteriorOffset);
+		ReplaceCallEx(0x54232F, &TESFileEx::GetOffset);
+		ReplaceCallEx(0x542C1C, &TESObjectCELLEx::SetInteriorOffset);
 
 		// TESObjectCELL::FindInFileFast
-		ReplaceCallEx(0x5502B9, &TESObjectCELL::GetInteriorOffset);
-		ReplaceCallEx(0x5502CE, &TESFile::SetOffset);
+		ReplaceCallEx(0x5502B9, &TESObjectCELLEx::GetInteriorOffset);
+		ReplaceCallEx(0x5502CE, &TESFileEx::SetOffset);
 	}
 }

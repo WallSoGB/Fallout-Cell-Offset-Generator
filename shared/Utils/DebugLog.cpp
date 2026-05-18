@@ -23,6 +23,7 @@ IDebugLog::IDebugLog()
 
 IDebugLog::IDebugLog(const char* name)
 {
+	MakeAllDirs(name);
 	Open(name);
 }
 
