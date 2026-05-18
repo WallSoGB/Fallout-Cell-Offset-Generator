@@ -17,8 +17,7 @@ public:
 	BSSpinLock			kLock;
 
 	static ScrapHeapManager* GetSingleton();
-	void	ReleaseBuffer(void* apAddress, SIZE_T aSize);
-	void*	RequestBuffer(SIZE_T& arSize);
+	void FreeAllBuffers();
 };
 
 ASSERT_SIZE(ScrapHeapManager, 0x240);
