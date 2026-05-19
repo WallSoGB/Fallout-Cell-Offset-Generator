@@ -298,7 +298,9 @@ OffsetGenerator::~OffsetGenerator() noexcept {
 	uiLastValue			= 0;
 
 	// Release memory we allocated on threads
-	ScrapHeapManager::GetSingleton()->FreeAllBuffers();
+	ScrapHeapManager* pMgr = ScrapHeapManager::GetSingleton();
+	if (pMgr)
+		pMgr->FreeAllBuffers();
 }
 
 void OffsetGenerator::RenderUI() noexcept {

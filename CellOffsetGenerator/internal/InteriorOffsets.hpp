@@ -8,12 +8,12 @@
 namespace InteriorOffsets {
 
 	typedef std::unordered_map<uint32_t, uint32_t> InteriorOffsets;
-	std::unordered_map<const TESFile*, InteriorOffsets*> kInteriorOffsetMap;
+	std::unordered_map<const TESFile*, InteriorOffsets*>* pInteriorOffsetMap;
 	thread_local const TESFile* pCurrentFile = nullptr;
 
 	InteriorOffsets* __fastcall GetOffsetMapForFile(const TESFile* apFile) noexcept {
-		auto it = kInteriorOffsetMap.find(apFile);
-		if (it != kInteriorOffsetMap.end()) [[likely]]
+		auto it = pInteriorOffsetMap->find(apFile);
+		if (it != pInteriorOffsetMap->end()) [[likely]]
 			return it->second;
 		return nullptr;
 	}
@@ -26,7 +26,7 @@ namespace InteriorOffsets {
 		else {
 			InteriorOffsets* pOffsets = new InteriorOffsets;
 			pOffsets->insert({ auiFormID, auiOffset });
-			kInteriorOffsetMap.insert({ apFile, pOffsets });
+			pInteriorOffsetMap->insert({ apFile, pOffsets });
 		}
 	}
 
@@ -93,6 +93,8 @@ namespace InteriorOffsets {
 	};
 
 	void InitHooks() noexcept {
+		pInteriorOffsetMap = new std::unordered_map<const TESFile*, InteriorOffsets*>;
+
 		// TESObjectCELL::Load
 		ReplaceCallEx(0x54232F, &TESFileEx::GetOffset);
 		ReplaceCallEx(0x542C1C, &TESObjectCELLEx::SetInteriorOffset);
