@@ -27,29 +27,53 @@ volatile uint32_t	uiTotalWorlds = 0;
 volatile uint32_t	uiProcessedWorlds = 0;
 uint32_t uiLastValue = 0;
 
-static XXH64_hash_t __fastcall CreateHashForFile(TESFile* apFile, XXH3_state_t* apHashState) noexcept {
+XXH64_hash_t __fastcall CreateHashForFileSafe(TESFile* apFile, XXH3_state_t* apHashState, ScrapHeap* apHeap) {
+	constexpr uint32_t uiBufferSize = 8192;
+
 	XXH3_64bits_reset(apHashState);
-	
-	HANDLE hFileMapping = CreateFileMappingA(apFile->pFile->m_hFile, nullptr, PAGE_READONLY, 0, 0, nullptr);
-	if (hFileMapping) [[likely]] {
-		void* pBuffer = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
-		if (!pBuffer) [[unlikely]] {
-			CloseHandle(hFileMapping);
-			_MESSAGE("Failed to map view of file for %s, error code: %u", apFile->GetName(), GetLastError());
-			DebugBreak();
-			return 0;
-		}
-		XXH3_64bits_update(apHashState, pBuffer, apFile->uiFileSize);
-		UnmapViewOfFile(pBuffer);
-		CloseHandle(hFileMapping);
-	}
-	else {
-		_MESSAGE("Failed to create file mapping for %s, error code: %u", apFile->GetName(), GetLastError());
-		DebugBreak();
-		return 0;
+
+	apFile->TESRewind(false);
+	apFile->pFile->ChangeBufferSize(uiBufferSize);
+
+	uint32_t uiReadBytes;
+	AutoScrapHeapBuffer kBuffer(uiBufferSize, 4, apHeap);
+
+	while ((uiReadBytes = apFile->pFile->Read(kBuffer.pData, uiBufferSize)) != 0) {
+		XXH3_64bits_update(apHashState, kBuffer.pData, uiReadBytes);
 	}
 
 	return XXH3_64bits_digest(apHashState);
+};
+
+static XXH64_hash_t __fastcall CreateHashForFile(TESFile* apFile, XXH3_state_t* apHashState, ScrapHeap* apHeap) noexcept {
+	XXH3_64bits_reset(apHashState);
+
+	const uint32_t uiFileSize = apFile->pFile->GetSize();
+	if (uiFileSize <= B_MiB(100)) {
+		DEBUG_MSG("Mapping %s into address space...", apFile->GetName());
+		HANDLE hFileMapping = CreateFileMappingA(apFile->pFile->m_hFile, nullptr, PAGE_READONLY, 0, 0, nullptr);
+		if (hFileMapping) [[likely]] {
+			void* pBuffer = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
+			if (!pBuffer) [[unlikely]] {
+				CloseHandle(hFileMapping);
+				_MESSAGE("Failed to map view of file for %s, error code: %u", apFile->GetName(), GetLastError());
+				return CreateHashForFileSafe(apFile, apHashState, apHeap);
+			}
+			XXH3_64bits_update(apHashState, pBuffer, apFile->uiFileSize);
+			UnmapViewOfFile(pBuffer);
+			CloseHandle(hFileMapping);
+		}
+		else {
+			_MESSAGE("Failed to create file mapping for %s, error code: %u", apFile->GetName(), GetLastError());
+			return CreateHashForFileSafe(apFile, apHashState, apHeap);
+		}
+
+		return XXH3_64bits_digest(apHashState);
+	}
+	else {
+		DEBUG_MSG("%s is too big to reliably map into address space. Reading normally...", apFile->GetName());
+		return CreateHashForFileSafe(apFile, apHashState, apHeap);
+	}
 }
 
 static XXH64_hash_t __fastcall CreateHashForOffsets(XXH3_state_t* apHashState, uint32_t* const& apOffsets, uint32_t auiOffsetCount) noexcept {
@@ -546,7 +570,7 @@ void OffsetGenerator::Start() noexcept {
 }
 
 void __fastcall CreateOffsetsForFile(TESFile* apFile, XXH3_state_t* apHashState, ScrapHeap* apHeap) noexcept {
-	const XXH64_hash_t ullHash = CreateHashForFile(apFile, apHashState);
+	const XXH64_hash_t ullHash = CreateHashForFile(apFile, apHashState, apHeap);
 
 	char cFolderPath[MAX_PATH];
 	char cFilePath[MAX_PATH];
